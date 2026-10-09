@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>身份证水印工具</title>
+    <style>
+        body {
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        h1 { color: #333; }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 900px;
+        }
+        input[type="file"], input[type="text"] {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 300px;
+            max-width: 100%;
+        }
+        select, input[type="number"], input[type="range"], input[type="color"] {
+            margin: 10px 0;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 150px;
+        }
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover { background-color: #0056b3; }
+        #canvas { display: none; max-width: none; }
+        .canvas-container {
+            display: none;
+            max-width: 100%;
+            overflow: auto;
+            margin-top: 10px;
+            border: 1px solid #ccc;
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+        }
+        .options {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 100%;
+            max-width: 800px;
+        }
+        .option-group {
+            margin: 5px 10px;
+            padding: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            width: 180px;
+        }
+        .option-group label { margin-bottom: 3px; font-size: 14px; }
+        .zoom-controls {
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .color-templates {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 10px 0;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+        }
+        .color-template-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 2px solid #ddd;
+            cursor: pointer;
+            padding: 0;
+            margin: 0;
+            transition: transform 0.15s, border-color 0.15s;
+        }
+        .color-template-btn:hover {
+            transform: scale(1.15);
+            border-color: #007BFF;
+        }
+        .color-template-btn.active {
+            border-color: #007BFF;
+            box-shadow: 0 0 0 2px rgba(0,123,255,0.4);
+        }
+        .color-btn-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .color-template-label {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            margin-top: 2px;
+        }
+        .current-color-info {
+            font-size: 13px;
+            color: #555;
+            margin: 5px 0;
+            text-align: center;
+        }
+        .current-color-info span { font-weight: bold; color: #007BFF; }
+        .section-title {
+            font-size: 14px;
+            color: #333;
+            font-weight: bold;
+            margin: 12px 0 5px;
+            width: 100%;
+            text-align: center;
+        }
+        /* 场景模板按钮 */
+        .scene-templates {
+            display: flex;
+            gap: 12px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .scene-btn {
+            padding: 12px 22px;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            background-color: #fafafa;
+            color: #333;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 140px;
+        }
+        .scene-btn:hover {
+            border-color: #007BFF;
+            background-color: #f0f7ff;
+        }
+        .scene-btn.active {
+            border-color: #007BFF;
+            background-color: #e6f0ff;
+            box-shadow: 0 0 0 2px rgba(0,123,255,0.2);
+        }
+        .scene-btn .scene-title {
+            font-weight: bold;
+            font-size: 15px;
+            margin-bottom: 3px;
+        }
+        .scene-btn .scene-desc {
+            font-size: 12px;
+            color: #888;
+        }
+        .scene-btn.active .scene-desc { color: #007BFF; }
+        .auto-detect-tip {
+            font-size: 13px;
+            color: #28a745;
+            margin: 5px 0;
+            min-height: 18px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>身份证水印工具</h1>
+        <input type="file" id="upload" accept="image/*">
+        <input type="text" id="watermark-text" placeholder="输入水印文字，如：仅供XX办理XX使用">
+ 
+        <div class="section-title">场景模板（点击切换全套参数）</div>
+        <div class="scene-templates">
+            <button class="scene-btn" data-scene="a4">
+                <span class="scene-title">&#128196; A4 纸上的身份证</span>
+                <span class="scene-desc">铺满整张 A4，字号大、行距宽</span>
+            </button>
+            <button class="scene-btn" data-scene="idcard">
+                <span class="scene-title">&#129706; 纯身份证照片</span>
+                <span class="scene-desc">只覆盖身份证，字号小、密度高</span>
+            </button>
+        </div>
+        <div class="auto-detect-tip" id="auto-detect-tip"></div>
+ 
+        <div class="section-title">颜色模板（点击选择）</div>
+        <div class="color-templates" id="color-templates"></div>
+        <div class="current-color-info">
+            当前颜色：<span id="current-color-name">浅蓝色</span>
+            <span id="current-color-hex" style="font-weight:normal;color:#888;">(#5B9BD5)</span>
+        </div>
+ 
+        <div class="options">
+            <div class="option-group">
+                <label for="font-size">文字大小：<span id="font-size-value">40</span>px</label>
+                <input type="range" id="font-size" min="10" max="200" value="40" step="1">
+            </div>
+            <div class="option-group">
+                <label for="rotation">旋转角度（度）：</label>
+                <input type="number" id="rotation" value="-30" step="1">
+            </div>
+            <div class="option-group">
+                <label for="font-family">字体：</label>
+                <select id="font-family">
+                    <option value="Microsoft YaHei" selected>微软雅黑</option>
+                    <option value="SimSun">宋体</option>
+                    <option value="SimHei">黑体</option>
+                    <option value="KaiTi">楷体</option>
+                    <option value="Arial">Arial</option>
+                    <option value="Times New Roman">Times New Roman</option>
+                    <option value="Courier New">Courier New</option>
+                    <option value="Verdana">Verdana</option>
+                </select>
+            </div>
+            <div class="option-group">
+                <label for="opacity">透明度（0-100）：<span id="opacity-value">40</span></label>
+                <input type="range" id="opacity" min="0" max="100" value="40">
+            </div>
+            <div class="option-group">
+                <label for="horizontal-spacing">水平间距（像素）：</label>
+                <input type="number" id="horizontal-spacing" value="100" min="10" step="10">
+            </div>
+            <div class="option-group">
+                <label for="vertical-spacing">行间距（像素）：</label>
+                <input type="number" id="vertical-spacing" value="200" min="10" step="10">
+            </div>
+            <div class="option-group">
+                <label for="font-color">自定义颜色：</label>
+                <input type="color" id="font-color" value="#5B9BD5">
+            </div>
+        </div>
+        <button id="add-watermark">添加水印</button>
+        <div class="zoom-controls">
+            <label for="zoom">缩放：<span id="zoom-value">100</span>%</label>
+            <input type="range" id="zoom" min="10" max="200" value="100" step="5">
+            <button id="fit-screen">适应屏幕</button>
+        </div>
+        <div class="canvas-container">
+            <canvas id="canvas"></canvas>
+        </div>
+        <button id="download" style="display: none;">下载图片</button>
+    </div>
+    <script>
+        let originalImage = null;
+        let currentZoom = 100;
+        let lastAppliedWatermark = null;
+        let currentScene = 'a4'; // 当前场景模板
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+ 
+        // ========== 场景模板定义 ==========
+        // 参数按"图片宽度"的比例来算，这样不同分辨率都能自适应
+        const sceneTemplates = {
+            a4: {
+                name: 'A4纸上的身份证',
+                // 基准：A4 300dpi ≈ 2480px 宽
+                baseWidth: 2480,
+                fontSize: 40,
+                opacity: 40,
+                horizontalSpacing: 100,
+                verticalSpacing: 200,
+                rotation: -30,
+                color: '#5B9BD5',
+                colorName: '浅蓝色'
+            },
+            idcard: {
+                name: '纯身份证照片',
+                // 基准：身份证照片宽约 1000px
+                baseWidth: 1000,
+                fontSize: 20,
+                opacity: 40,
+                horizontalSpacing: 50,
+                verticalSpacing: 100,
+                rotation: -30,
+                color: '#5B9BD5',
+                colorName: '浅蓝色'
+            }
+        };
+ 
+        // ========== 颜色模板定义 ==========
+        const colorTemplates = [
+            { name: '浅蓝色', hex: '#5B9BD5', desc: '推荐' },
+            { name: '浅红色', hex: '#E06666', desc: '推荐' },
+            { name: '浅灰色', hex: '#A0A0A0', desc: '低调' },
+            { name: '深蓝色', hex: '#1F4E79', desc: '醒目' },
+            { name: '深红色', hex: '#C00000', desc: '醒目' },
+            { name: '橙色',   hex: '#ED7D31', desc: '警示' },
+            { name: '绿色',   hex: '#70AD47', desc: '特殊' },
+            { name: '紫色',   hex: '#7030A0', desc: '特殊' },
+            { name: '黑色',   hex: '#000000', desc: '慎用' },
+            { name: '白色',   hex: '#FFFFFF', desc: '不推荐' }
+        ];
+ 
+        // 生成颜色模板按钮
+        function renderColorTemplates() {
+            const container = document.getElementById('color-templates');
+            container.innerHTML = '';
+            colorTemplates.forEach(tpl => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'color-btn-wrapper';
+                const btn = document.createElement('button');
+                btn.className = 'color-template-btn';
+                btn.style.backgroundColor = tpl.hex;
+                btn.title = `${tpl.name} ${tpl.hex}（${tpl.desc}）`;
+                btn.dataset.hex = tpl.hex;
+                btn.dataset.name = tpl.name;
+                if (tpl.hex.toUpperCase() === '#FFFFFF') {
+                    btn.style.border = '2px solid #999';
+                }
+                btn.addEventListener('click', () => {
+                    selectColorTemplate(tpl.hex, tpl.name);
+                });
+                const label = document.createElement('div');
+                label.className = 'color-template-label';
+                label.textContent = tpl.name;
+                wrapper.appendChild(btn);
+                wrapper.appendChild(label);
+                container.appendChild(wrapper);
+            });
+        }
+ 
+        // 选中颜色模板
+        function selectColorTemplate(hex, name) {
+            document.getElementById('font-color').value = hex;
+            document.getElementById('current-color-name').textContent = name;
+            document.getElementById('current-color-hex').textContent = `(${hex})`;
+            document.querySelectorAll('.color-template-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.hex.toUpperCase() === hex.toUpperCase());
+            });
+            if (originalImage && document.getElementById('watermark-text').value) {
+                applyWatermark();
+            }
+        }
+ 
+        // ========== 应用场景模板 ==========
+        function applySceneTemplate(sceneKey, imageWidth) {
+            const tpl = sceneTemplates[sceneKey];
+            if (!tpl) return;
+ 
+            currentScene = sceneKey;
+ 
+            // 根据图片实际宽度，按比例缩放参数
+            const ratio = imageWidth ? (imageWidth / tpl.baseWidth) : 1;
+ 
+            const fontSize = Math.round(tpl.fontSize * ratio);
+            const hSpacing = Math.round(tpl.horizontalSpacing * ratio);
+            const vSpacing = Math.round(tpl.verticalSpacing * ratio);
+ 
+            document.getElementById('font-size').value = fontSize;
+            document.getElementById('font-size-value').textContent = fontSize;
+ 
+            document.getElementById('opacity').value = tpl.opacity;
+            document.getElementById('opacity-value').textContent = tpl.opacity;
+ 
+            document.getElementById('horizontal-spacing').value = hSpacing;
+            document.getElementById('vertical-spacing').value = vSpacing;
+            document.getElementById('rotation').value = tpl.rotation;
+ 
+            selectColorTemplate(tpl.color, tpl.colorName);
+ 
+            // 高亮场景按钮
+            document.querySelectorAll('.scene-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.scene === sceneKey);
+            });
+ 
+            // 如果已有图片和水印文字，立即重绘
+            if (originalImage && document.getElementById('watermark-text').value) {
+                applyWatermark();
+            }
+        }
+ 
+        // 场景按钮点击
+        document.querySelectorAll('.scene-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const sceneKey = this.dataset.scene;
+                const imgWidth = originalImage ? originalImage.width : null;
+                applySceneTemplate(sceneKey, imgWidth);
+                document.getElementById('auto-detect-tip').textContent =
+                    `已切换到「${sceneTemplates[sceneKey].name}」模板` +
+                    (imgWidth ? `，按图片宽度 ${imgWidth}px 自动调整了参数` : '');
+            });
+        });
+ 
+        // ========== 自动识别场景 ==========
+        function detectScene(img) {
+            const ratio = img.width / img.height;
+            // A4 竖版比例约 0.707，身份证横版约 1.58，身份证竖版约 0.63
+            // 如果图片接近 A4 竖版比例，且尺寸较大，判为 A4
+            if (ratio > 0.6 && ratio < 0.8 && img.width >= 1200) {
+                return 'a4';
+            }
+            // 身份证横版比例
+            if (ratio > 1.4 && ratio < 1.8) {
+                return 'idcard';
+            }
+            // 其他情况按尺寸判断：大图偏 A4，小图偏身份证
+            return img.width >= 1500 ? 'a4' : 'idcard';
+        }
+ 
+        // ========== 初始化 ==========
+        renderColorTemplates();
+        applySceneTemplate('a4', null);
+ 
+        // ========== 事件监听 ==========
+        document.getElementById('font-size').addEventListener('input', function() {
+            document.getElementById('font-size-value').textContent = this.value;
+            if (originalImage && document.getElementById('watermark-text').value) {
+                applyWatermark();
+            }
+        });
+ 
+        document.getElementById('opacity').addEventListener('input', function() {
+            document.getElementById('opacity-value').textContent = this.value;
+        });
+ 
+        document.getElementById('zoom').addEventListener('input', function() {
+            currentZoom = parseInt(this.value);
+            document.getElementById('zoom-value').textContent = currentZoom;
+            applyZoom();
+        });
+ 
+        document.getElementById('font-color').addEventListener('input', function() {
+            const hex = this.value.toUpperCase();
+            const matched = colorTemplates.find(t => t.hex.toUpperCase() === hex);
+            document.getElementById('current-color-name').textContent = matched ? matched.name : '自定义';
+            document.getElementById('current-color-hex').textContent = `(${hex})`;
+            document.querySelectorAll('.color-template-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.hex.toUpperCase() === hex);
+            });
+        });
+ 
+        document.getElementById('fit-screen').addEventListener('click', function() {
+            if (!originalImage) return;
+            const container = document.querySelector('.canvas-container');
+            const containerWidth = container.clientWidth || document.querySelector('.container').clientWidth - 40;
+            const containerHeight = window.innerHeight * 0.6;
+ 
+            let newZoom = 100;
+            if (originalImage.width > containerWidth) {
+                newZoom = (containerWidth / originalImage.width) * 100;
+            }
+            if (originalImage.height * (newZoom / 100) > containerHeight) {
+                newZoom = (containerHeight / originalImage.height) * 100;
+            }
+            document.getElementById('zoom').value = newZoom;
+            document.getElementById('zoom-value').textContent = Math.round(newZoom);
+            currentZoom = newZoom;
+            applyZoom();
+        });
+ 
+        function applyZoom() {
+            if (!originalImage) return;
+            const scaleFactor = currentZoom / 100;
+            canvas.style.width = `${originalImage.width * scaleFactor}px`;
+            canvas.style.height = `${originalImage.height * scaleFactor}px`;
+            if (lastAppliedWatermark) {
+                applyWatermark();
+            } else {
+                redrawOriginalImage();
+            }
+        }
+ 
+        function redrawOriginalImage() {
+            if (!originalImage) return;
+            canvas.width = originalImage.width;
+            canvas.height = originalImage.height;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(originalImage, 0, 0, canvas.width, canvas.height);
+        }
+ 
+        function hexToRgba(hex, alpha) {
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+ 
+        function applyWatermark() {
+            if (!originalImage) {
+                alert('请先上传图片');
+                return;
+            }
+            const text = document.getElementById('watermark-text').value;
+            if (!text) {
+                alert('请输入水印文字');
+                return;
+            }
+ 
+            lastAppliedWatermark = {
+                text: text,
+                fontSize: document.getElementById('font-size').value,
+                rotation: parseFloat(document.getElementById('rotation').value),
+                fontFamily: document.getElementById('font-family').value,
+                opacity: parseInt(document.getElementById('opacity').value) / 100,
+                horizontalSpacing: parseInt(document.getElementById('horizontal-spacing').value),
+                verticalSpacing: parseInt(document.getElementById('vertical-spacing').value),
+                fontColor: document.getElementById('font-color').value
+            };
+ 
+            redrawOriginalImage();
+ 
+            ctx.font = `${lastAppliedWatermark.fontSize}px "${lastAppliedWatermark.fontFamily}"`;
+            ctx.fillStyle = hexToRgba(lastAppliedWatermark.fontColor, lastAppliedWatermark.opacity);
+            ctx.textBaseline = 'middle';
+            ctx.save();
+ 
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            const angle = lastAppliedWatermark.rotation * Math.PI / 180;
+            ctx.rotate(angle);
+ 
+            const textWidth = ctx.measureText(text).width;
+            const diagonal = Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height);
+            const cols = Math.ceil(diagonal / (textWidth + lastAppliedWatermark.horizontalSpacing));
+            const rows = Math.ceil(diagonal / lastAppliedWatermark.verticalSpacing);
+ 
+            for (let i = -rows; i < rows; i++) {
+                for (let j = -cols; j < cols; j++) {
+                    const x = j * (textWidth + lastAppliedWatermark.horizontalSpacing);
+                    const y = i * lastAppliedWatermark.verticalSpacing;
+                    ctx.fillText(text, x, y);
+                }
+            }
+            ctx.restore();
+            document.getElementById('download').style.display = 'inline-block';
+        }
+ 
+        // 上传图片
+        document.getElementById('upload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    originalImage = img;
+                    currentZoom = 100;
+                    document.getElementById('zoom').value = 100;
+                    document.getElementById('zoom-value').textContent = 100;
+ 
+                    redrawOriginalImage();
+ 
+                    canvas.style.display = 'block';
+                    document.querySelector('.canvas-container').style.display = 'block';
+                    document.getElementById('download').style.display = 'none';
+ 
+                    document.getElementById('fit-screen').click();
+                    lastAppliedWatermark = null;
+ 
+                    // 自动识别场景并套用模板
+                    const scene = detectScene(img);
+                    applySceneTemplate(scene, img.width);
+                    document.getElementById('auto-detect-tip').textContent =
+                        `已自动识别为「${sceneTemplates[scene].name}」，按图片宽度 ${img.width}px 调整参数`;
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+ 
+        document.getElementById('add-watermark').addEventListener('click', applyWatermark);
+ 
+        const realTimePreviewElements = [
+            'rotation', 'font-family', 'opacity',
+            'horizontal-spacing', 'vertical-spacing', 'font-color'
+        ];
+ 
+        realTimePreviewElements.forEach(id => {
+            document.getElementById(id).addEventListener('input', function() {
+                if (originalImage && document.getElementById('watermark-text').value) {
+                    applyWatermark();
+                }
+            });
+        });
+ 
+        document.getElementById('watermark-text').addEventListener('input', function() {
+            if (originalImage && this.value) {
+                applyWatermark();
+            }
+        });
+ 
+        document.getElementById('download').addEventListener('click', function() {
+            const dataURL = canvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = dataURL;
+            a.download = 'watermarked-image.png';
+            a.click();
+        });
+    </script>
+</body>
+</html>
